@@ -110,7 +110,7 @@ EOF
 The original loader is left alone, so the qemu path still works if you want to
 compare.
 
-## 🛡️ Seccomp
+## Seccomp
 
 This part is the expensive one to diagnose. Android installs a seccomp
 filter on app processes. Syscalls outside the allowlist raise `SIGSYS`, which
@@ -150,7 +150,7 @@ make seccomp-probe
 439 blocked by seccomp (SIGSYS)
 ```
 
-## 🐚 Running commands
+## Commands
 
 Claude Code runs its shell commands by starting `bash` from Termux. That
 `execve` comes from the musl process, where `libtermux-exec.so` cannot load,
@@ -170,14 +170,8 @@ it into the musl process. It wraps `execve`, `execv`, `execvp`, `execvpe`,
 `make install` puts it in `~/ccmusl/root/lib/`, and `cc5` turns it on when it
 finds it there.
 
-## ⌨️ Soft keyboard
 
-The 2.1.289 TUI turns on mouse tracking at start up (`?1000h`, `?1002h`,
-`?1003h`, `?1006h`). Termux then sends your taps as mouse clicks and the soft
-keyboard stays down. `CLAUDE_CODE_DISABLE_MOUSE=1` fixes it, and `cc5` sets it
-by default.
-
-## ⚡ Speed
+## Speed
 
 Same prompt, `-p "reply with exactly: ok"`, same model:
 
@@ -189,13 +183,13 @@ Same prompt, `-p "reply with exactly: ok"`, same model:
 CPU time under pieload is about 3.5 s, so most of what is left is the API
 round trip. Tool use with a local file read came in at 10.5 s.
 
-## 🐛 Debugging
+## Debugging
 
 Use Termux's `strace`. The one in `/system/bin` quits with
 `Unexpected wait status`. Since Bun handles `SIGSEGV` itself you get no
 tombstone, so `strace -f` is the only honest view of what happened.
 
-## 🚧 Limits
+## ?Limits
 
 aarch64 Linux targets only. The target's fixed address range has to be free in
 pieload's own process, which it checks before mapping. One Bionic process image
