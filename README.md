@@ -46,7 +46,7 @@ make install
 
 clang, aarch64. Tested on Android 13.
 
-## 🚀 Use
+##  Use
 
 ```sh
 pieload <dynamic-loader> <program> [args...]
@@ -54,7 +54,7 @@ pieload <dynamic-loader> <program> [args...]
 
 `PIELOAD_VERBOSE=1` prints the mapping layout.
 
-## 🤖 Running Claude Code with it
+##  Running Claude Code with it
 
 `cc5` in this repo is the wrapper. The setup it expects:
 
