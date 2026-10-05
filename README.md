@@ -8,6 +8,9 @@
 [![Stars](https://img.shields.io/github/stars/DavutKaraoglan/pieload?style=flat)](https://github.com/DavutKaraoglan/pieload/stargazers)
 
 Run non-PIE aarch64 Linux binaries on Android from userland, at native speed.
+Built to run Claude Code with Opus 5.5 on Termux.
+
+Page: https://davutkaraoglan.github.io/pieload/ · For agents: [llms.txt](llms.txt)
 
 Newer Claude Code releases, the ones that support Opus 5.5, ship only as
 non-PIE Linux binaries. Android refuses to run those: SELinux blocks `execve`

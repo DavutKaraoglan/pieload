@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pieload: Claude Code with Opus 5.5 on Termux</title>
+<meta name="description" content="Run Claude Code with Opus 5.5 natively on Android in Termux. A userland ELF loader for non-PIE aarch64 binaries: 6 to 7 s per prompt instead of 85 s under qemu.">
+<meta property="og:title" content="pieload: Claude Code with Opus 5.5 on Termux">
+<meta property="og:description" content="Run the musl build of Claude Code natively on Android, no root, no qemu.">
+<meta property="og:url" content="https://davutkaraoglan.github.io/pieload/">
+<link rel="alternate" type="text/plain" href="llms.txt" title="llms.txt">
+<style>
+:root {
+  --bg: #faf9f6; --fg: #1f1e1c; --muted: #6b6862; --accent: #c4623f;
+  --card: #ffffff; --line: #e6e2da; --code: #f1eee8;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #171614; --fg: #ecebe7; --muted: #a29e96; --accent: #e08463;
+    --card: #1f1e1b; --line: #33312d; --code: #26241f;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+main { max-width: 760px; margin: 0 auto; padding: 48px 16px 64px; }
+h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 8px; }
+h2 { font-size: 1.2rem; margin: 40px 0 12px; }
+.lead { color: var(--muted); font-size: 1.1rem; margin: 0 0 24px; }
+a { color: var(--accent); }
+.btns { display: flex; flex-wrap: wrap; gap: 12px; }
+.btn {
+  display: inline-block; padding: 10px 16px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--card);
+  color: var(--fg); text-decoration: none; font-weight: 600;
+}
+.btn.primary { background: var(--accent); border-color: var(--accent);
+  color: #fff; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit,
+  minmax(160px, 1fr)); gap: 12px; margin: 32px 0 0; }
+.stat { background: var(--card); border: 1px solid var(--line);
+  border-radius: 10px; padding: 14px 16px; }
+.stat b { display: block; font-size: 1.5rem; }
+.stat span { color: var(--muted); font-size: .9rem; }
+pre, code { font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: .88rem; }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
+pre { background: var(--code); border: 1px solid var(--line);
+  border-radius: 8px; padding: 14px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+ol, ul { padding-left: 22px; }
+li { margin: 4px 0; }
+.agent { background: var(--card); border: 1px solid var(--line);
+  border-left: 4px solid var(--accent); border-radius: 8px;
+  padding: 14px 16px; }
+footer { margin-top: 48px; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Claude Code with Opus 5.5 on Termux</h1>
+<p class="lead">pieload runs the Linux build of Claude Code natively on
+Android. No root, no proot, no qemu.</p>
+<div class="btns">
+  <a class="btn primary" href="https://github.com/DavutKaraoglan/pieload">
+    View on GitHub</a>
+  <a class="btn" href="https://github.com/DavutKaraoglan/pieload#readme">
+    Full README</a>
+  <a class="btn" href="llms.txt">llms.txt</a>
+</div>
+
+<div class="stats">
+  <div class="stat"><b>6 to 7 s</b><span>per prompt with pieload</span></div>
+  <div class="stat"><b>85 s</b><span>same prompt under qemu</span></div>
+  <div class="stat"><b>~600</b><span>lines of C, no dependencies</span></div>
+</div>
+
+<h2>Why it is needed</h2>
+<p>Claude Code releases that support Opus 5.5 ship only as non-PIE Linux
+binaries. Android will not run them: SELinux blocks <code>execve</code> on
+app data, and the Bionic linker only accepts <code>ET_DYN</code>. pieload
+maps the binary itself, builds the stack and auxiliary vector, and jumps
+into the musl loader.</p>
+
+<h2>Setup</h2>
+<pre><code>pkg install clang make git python curl
+git clone https://github.com/DavutKaraoglan/pieload
+cd pieload &amp;&amp; make &amp;&amp; make install
+
+mkdir -p ~/ccmusl/root/lib &amp;&amp; cd ~/ccmusl
+V=2.1.289
+curl -sL "https://registry.npmjs.org/@anthropic-ai/claude-code-linux-arm64-musl/-/claude-code-linux-arm64-musl-$V.tgz" | tar xz</code></pre>
+<ol>
+  <li>Put <code>ld-musl-aarch64.so.1</code> from an Alpine
+    <code>musl</code> package in <code>~/ccmusl/root/lib/</code>.</li>
+  <li>Patch a copy of the loader for DNS, as in the
+    <a href="https://github.com/DavutKaraoglan/pieload#-dns">README</a>.</li>
+  <li>Run <code>cp cc5 $PREFIX/bin/ &amp;&amp; cc5</code> from the repo.</li>
+</ol>
+<p>Your existing <code>~/.claude</code> login is reused.</p>
+
+<h2>Problems it solves</h2>
+<ul>
+  <li><code>execve</code> denied on a binary in app data</li>
+  <li>Every DNS lookup failing with <code>EAI_AGAIN</code> under musl</li>
+  <li><code>SIGSEGV</code> at <code>0x300</code> with no tombstone, really a
+    seccomp <code>SIGSYS</code></li>
+  <li>Bash tool calls failing with <code>EACCES</code></li>
+  <li>The soft keyboard not opening in the TUI</li>
+</ul>
+
+<h2>Ask your agent</h2>
+<div class="agent">
+<p style="margin:0">Paste this into Claude Code or any coding agent on
+Termux:</p>
+<pre><code>Set up Claude Code with Opus 5.5 on this Termux device using
+https://github.com/DavutKaraoglan/pieload. Read its llms.txt and
+README, then follow the steps.</code></pre>
+</div>
+
+<footer>MIT licensed. aarch64, tested on Android 13.</footer>
+</main>
+</body>
+</html>
