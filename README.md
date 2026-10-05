@@ -1,34 +1,7 @@
 # pieload
 
-I wanted to run Claude Code with Opus 5.5 on my phone. This is the loader I
-had to write to get there.
-
-## Why
-
-Claude Code used to ship as a JavaScript bundle, so Termux could run it with
-Node. From 2.1.113 on it ships a platform binary built with Bun. There is a
-`linux-arm64-android` entry in the installer, but that package is not on npm,
-so the only option is the plain `linux-arm64` build. That binary is `ET_EXEC`,
-and it will not start on Termux:
-
-```
-error: "./claude" has unexpected e_type: 2
-```
-
-The reason took me a while to find. Android denies `execve()` on files in app
-data, so Termux runs everything through `/system/bin/linker64` instead, and
-Bionic's linker only accepts `ET_DYN`. The kernel never even looks at my file,
-it execs the linker. That is why patching `e_type` or `PT_INTERP` by hand does
-nothing. I tried both.
-
-`qemu-aarch64` does work, because qemu itself is a well formed PIE, and it
-loads the `ET_EXEC` guest in user space afterwards. I used it for a while. On
-the same prompt it took 85 seconds against 6 for the native path, so I stopped
-using it.
-
-The useful detail is that `mmap()` with `PROT_EXEC` on app data is still
-allowed, because that is how shared libraries load. So the program can be
-mapped and started from user space. That is all pieload is.
+pieload exists to run Claude Code with Opus 5.5 on Termux, on a phone, without
+emulation.
 
 ## What it does
 
@@ -55,7 +28,7 @@ make
 make install
 ```
 
-clang, aarch64. I tested on Android 13.
+clang, aarch64. Tested on Android 13.
 
 ## Use
 
@@ -67,7 +40,7 @@ pieload <dynamic-loader> <program> [args...]
 
 ## Running Claude Code with it
 
-`cc5` in this repo is the wrapper I use. The setup it expects:
+`cc5` in this repo is the wrapper. The setup it expects:
 
 ```sh
 mkdir -p ~/ccmusl && cd ~/ccmusl
@@ -101,9 +74,9 @@ musl reads `/etc/resolv.conf` and `/etc/hosts` from fixed paths. On Android
 `/etc/resolv.conf` it falls back to `127.0.0.1`, and every lookup ends in
 `EAI_AGAIN`.
 
-I patched the paths inside a copy of the loader. The replacement has to be the
-same length or shorter, padded with NUL. `/sdcard` was the only writable place
-I found with a short enough path:
+The fix is to patch the paths inside a copy of the loader. The replacement has
+to be the same length or shorter, padded with NUL. `/sdcard` is the only
+writable place with a short enough path:
 
 ```sh
 cd ~/ccmusl/root/lib
@@ -123,12 +96,12 @@ compare.
 
 ## Seccomp
 
-This was the part that cost me the most time. Android installs a seccomp
+This part is the expensive one to diagnose. Android installs a seccomp
 filter on app processes. Syscalls outside the allowlist raise `SIGSYS`, which
 kills the process, instead of returning `ENOSYS`. The filter is older than the
 syscalls Bun uses, so Bun walks straight into it.
 
-What I saw was a `SIGSEGV` at `0x300` after start up. There was no tombstone,
+The symptom is a `SIGSEGV` at `0x300` after start up, with no tombstone,
 because Bun installs its own `SIGSEGV` handler. `strace -f` showed the real
 cause one line above the crash:
 
@@ -141,12 +114,12 @@ pieload answers `SIGSYS` by writing a result into the saved register context
 and returning. `faccessat2` (439) becomes `faccessat` (48). Everything else
 gets `-ENOSYS`.
 
-Returning `ENOSYS` works better than emulating the call. I first translated
-`epoll_pwait2` into `epoll_pwait` properly and it ran 25 times further, then
-died anyway: Bun installs its own `SIGSYS` crash handler late in start up,
-replaces mine, and that handler resets the signal to `SIG_DFL` and kills
-itself. With `ENOSYS` the program picks its fallback once, early, and never
-raises `SIGSYS` again.
+Returning `ENOSYS` works better than emulating the call. Translating
+`epoll_pwait2` into `epoll_pwait` properly gets 25 times further and then dies
+anyway: Bun installs its own `SIGSYS` crash handler late in start up, replaces
+this one, and that handler resets the signal to `SIG_DFL` and kills itself.
+With `ENOSYS` the program picks its fallback once, early, and never raises
+`SIGSYS` again.
 
 `seccomp-probe` lists what the filter rejects on your device:
 
@@ -192,8 +165,8 @@ aarch64 Linux targets only. The target's fixed address range has to be free in
 pieload's own process, which it checks before mapping. One Bionic process image
 stays mapped next to the target, so memory use is a bit above a real `execve`.
 
-Things I tried that do not work, in case you were about to: flipping `e_type`
-to `ET_DYN` and calling the musl loader by hand, repointing `PT_INTERP`,
+Dead ends, in case you were about to try them: flipping `e_type` to `ET_DYN`
+and calling the musl loader by hand, repointing `PT_INTERP`,
 `glibc-runner`, `getauxval` shims through `LD_PRELOAD`, and adding `PT_PHDR` to
 glibc's `ld.so`. The last one gets past Bionic's check and then segfaults on
 double relocation. proot and UserLAnd do not help either, since they are
