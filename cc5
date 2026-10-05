@@ -1,0 +1,21 @@
+#!/bin/bash
+CC_ROOT="${CC_ROOT:-$HOME/ccmusl/root}"
+CC_BIN="${CC_BIN:-$HOME/ccmusl/package/claude}"
+CC_LOADER="${CC_LOADER:-$CC_ROOT/lib/ld-musl-native.so.1}"
+CC_PIELOAD="${CC_PIELOAD:-$(command -v pieload)}"
+
+if [ ! -x "$CC_BIN" ]; then
+  echo "cc5: $CC_BIN not found" >&2
+  exit 1
+fi
+
+export ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-claude-opus-5-5}"
+export CLAUDE_CODE_DISABLE_MOUSE="${CLAUDE_CODE_DISABLE_MOUSE:-1}"
+unset LD_PRELOAD
+
+if [ -z "$CC5_QEMU" ] && [ -x "$CC_PIELOAD" ] && [ -f "$CC_LOADER" ]; then
+  export LD_LIBRARY_PATH="$CC_ROOT/lib"
+  exec "$CC_PIELOAD" "$CC_LOADER" "$CC_BIN" "$@"
+fi
+
+exec qemu-aarch64 -L "$CC_ROOT" "$CC_BIN" "$@"
