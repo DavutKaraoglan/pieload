@@ -11,10 +11,16 @@ fi
 
 export ANTHROPIC_MODEL="${ANTHROPIC_MODEL:-claude-opus-5-5}"
 export CLAUDE_CODE_DISABLE_MOUSE="${CLAUDE_CODE_DISABLE_MOUSE:-1}"
+CC_SHIM="${CC_SHIM:-$CC_ROOT/lib/execshim.so}"
+TERMUX_PRELOAD="$LD_PRELOAD"
 unset LD_PRELOAD
 
 if [ -z "$CC5_QEMU" ] && [ -x "$CC_PIELOAD" ] && [ -f "$CC_LOADER" ]; then
   export LD_LIBRARY_PATH="$CC_ROOT/lib"
+  if [ -f "$CC_SHIM" ] && [ -n "$TERMUX_PRELOAD" ]; then
+    export PIELOAD_TERMUX_PRELOAD="$TERMUX_PRELOAD"
+    export PIELOAD_PRELOAD="$CC_SHIM"
+  fi
   exec "$CC_PIELOAD" "$CC_LOADER" "$CC_BIN" "$@"
 fi
 

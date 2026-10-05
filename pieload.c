@@ -179,6 +179,32 @@ static void shim_seccomp(void)
 	sigaction(SIGSYS, &sa, NULL);
 }
 
+static char **child_env(void)
+{
+	int n = 0;
+	for (char **e = environ; *e; e++)
+		n++;
+	char **out = calloc(n + 1, sizeof *out);
+	if (!out)
+		die("child env");
+
+	int k = 0;
+	for (char **e = environ; *e; e++) {
+		if (!strncmp(*e, "LD_PRELOAD=", 11))
+			continue;
+		if (!strncmp(*e, "PIELOAD_PRELOAD=", 16)) {
+			if (!(*e)[16])
+				continue;
+			if (asprintf(&out[k], "LD_PRELOAD=%s", *e + 16) < 0)
+				die("child env");
+			k++;
+			continue;
+		}
+		out[k++] = *e;
+	}
+	return out;
+}
+
 static int overridden(unsigned long t)
 {
 	return t == AT_PHDR || t == AT_PHENT || t == AT_PHNUM ||
@@ -207,17 +233,16 @@ int main(int argc, char **argv)
 	LOG("prog entry=%#lx phdr=%#lx phnum=%lu interp entry=%#lx base=%#lx\n",
 	    prog.entry, prog.phdr, prog.phnum, interp.entry, interp.base);
 
+	char **cenv = child_env();
 	int nenv = 0;
-	for (char **e = environ; *e; e++)
-		if (strncmp(*e, "LD_PRELOAD=", 11))
-			nenv++;
+	for (char **e = cenv; *e; e++)
+		nenv++;
 
 	size_t strsz = 0;
 	for (int i = 0; i < nargs; i++)
 		strsz += strlen(args[i]) + 1;
-	for (char **e = environ; *e; e++)
-		if (strncmp(*e, "LD_PRELOAD=", 11))
-			strsz += strlen(*e) + 1;
+	for (char **e = cenv; *e; e++)
+		strsz += strlen(*e) + 1;
 
 	size_t naux = 0;
 	for (int i = 0; i + 1 < own_n && own_auxv[i]; i += 2)
@@ -251,9 +276,7 @@ int main(int argc, char **argv)
 		s += l;
 	}
 	*w++ = 0;
-	for (char **e = environ; *e; e++) {
-		if (!strncmp(*e, "LD_PRELOAD=", 11))
-			continue;
+	for (char **e = cenv; *e; e++) {
 		size_t l = strlen(*e) + 1;
 		memcpy(s, *e, l);
 		*w++ = (unsigned long)s;
